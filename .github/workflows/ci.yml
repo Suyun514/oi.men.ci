@@ -22,9 +22,8 @@ jobs:
       uses: Menci/service-worker-redirect-origin@main
       with:
         www-root: public
-        target-base-url: https://cdn-static.menci.xyz/menci-oi-blog/
+        target-base-url: https://cdn.menci.xyz/menci-oi-blog/
     - name: Push to GitHub
-      id: commit-push
       if: ${{ github.event_name == 'push' }}
       run: |
         touch public/404.html
@@ -35,35 +34,24 @@ jobs:
         node_modules/.bin/hexo d
 
         cd .deploy_git
-        echo "::set-output commit-hash=$(git rev-parse HEAD)"
       env:
         SSH_KEY: ${{ secrets.DEPLOY_KEY_TARGET }}
-    - name: Wait for Cloudflare Pages Deployment
+    - name: Deploy to Cloudflare Pages
       if: ${{ github.event_name == 'push' }}
-      uses: Menci/cf-pages-await@main
+      uses: Menci/pages-action@main
       with:
-        accountEmail: ${{ secrets.CLOUDFLARE_ACCOUNT_EMAIL }}
-        apiKey: ${{ secrets.CLOUDFLARE_API_KEY }}
+        apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-        project: menci-oi-blog
-        commitHash: ${{ steps.commit-push.outputs.commit-hash }}
-    - name: Deploy to Aliyun OSS
+        projectName: menci-oi-blog
+        directory: public
+        branch: main
+    - name: Deploy to Static CDN
       if: ${{ github.event_name == 'push' }}
-      uses: Menci/upload-to-oss@main
+      uses: AyaInfra/StaticCDNDeploy@main
       with:
-          access-key-id: ${{ secrets.ALIYUN_ACCESS_KEY_ID }}
-          access-key-secret: ${{ secrets.ALIYUN_ACCESS_KEY_SECRET }}
-          bucket: ${{ secrets.ALIYUN_OSS_BUCKET }}
-          endpoint: ${{ secrets.ALIYUN_OSS_ENDPOINT }}
-          local-path: public
-          remote-path: menci-oi-blog
-          headers: |
-            filename => (
-              {
-                "Cache-Control": `public, max-age=${[".html", ".xml"].some(ext => filename.endsWith(ext)) ? 60 : 604800}`
-              }
-            )
-          delay-html-file-upload: true
+        deploy-credentials: ${{ secrets.STATIC_CDN_CREDENTIALS }}
+        local-path: public
+        remote-path: menci-oi-blog
     - name: Deploy to Azure
       if: ${{ github.event_name == 'push' }}
       uses: Azure/static-web-apps-deploy@v1
